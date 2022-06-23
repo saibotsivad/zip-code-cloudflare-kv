@@ -1,0 +1,40 @@
+{
+  "name": "zip-code-cloudflare-kv",
+  "version": "0.0.0",
+  "description": "Fill a Cloudflare KV namespace with ZIP code details, e.g. for lookup from a Worker.",
+  "type": "module",
+  "bin": "bin.js",
+  "scripts": {
+    "lint": "eslint bin.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/saibotsivad/zip-code-cloudflare-kv.git"
+  },
+  "keywords": [
+    "zip",
+    "zipcode",
+    "postal",
+    "worker",
+    "kv",
+    "cloudflare"
+  ],
+  "author": {
+    "name": "Tobias Davis",
+    "email": "tobias@davistobias.com",
+    "url": "https://davistobias.com"
+  },
+  "license": "SEE LICENSE IN LICENSE.md",
+  "bugs": {
+    "url": "https://github.com/saibotsivad/zip-code-cloudflare-kv/issues"
+  },
+  "homepage": "https://github.com/saibotsivad/zip-code-cloudflare-kv",
+  "devDependencies": {
+    "@saibotsivad/eslint-config-saibotsivad": "*"
+  },
+  "dependencies": {
+    "httpie": "^1.1.2",
+    "just-split": "^3.0.1",
+    "sade": "^1.8.1"
+  }
+}

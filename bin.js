@@ -29,7 +29,12 @@ const putValues = async ({ accountId, namespaceId, prefix }) => {
 		log(`Writing chunk ${++currentChunk} of ${chunks.length}`)
 		let response
 		try {
-			response = await put(url, { body })
+			response = await put(url, {
+				body,
+				headers: {
+					'X-Auth-Key': 'TODO', // TODO
+				},
+			})
 		} catch (error) {
 			response = error
 		}
@@ -50,11 +55,3 @@ sade('zip-code-cloudflare-kv', true)
 		process.exit(1)
 	}).then(() => process.exit(0)))
 	.parse(process.argv)
-
-/*
-curl -X PUT "$THE_URL" \
-     -H "X-Auth-Email: user@example.com" \
-     -H "X-Auth-Key: c2547eb745079dac9320b638f5e225cf483cc5cfdda41" \
-     -H "Content-Type: application/json" \
-     --data '[{"key":"My-Key","value":"Some string","expiration":1578435000,"expiration_ttl":300,"metadata":{"someMetadataKey":"someMetadataValue"},"base64":false}]'
- */

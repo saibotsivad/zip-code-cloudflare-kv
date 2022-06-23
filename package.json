@@ -5,7 +5,7 @@
   "type": "module",
   "bin": "bin.js",
   "scripts": {
-    "lint": "eslint bin.js"
+    "test": "eslint bin.js"
   },
   "repository": {
     "type": "git",

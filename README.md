@@ -6,14 +6,16 @@ The basic idea is to create a Workers KV namespace, then run this CLI tool to fi
 
 ## Using in a Worker
 
-Data is written with a few different prefixes, to support different lookups, but here's a simple example of using this data in a Worker that has a namespace bound to `ZIPS` and uses the [modules](https://blog.cloudflare.com/workers-javascript-modules/) format:
+Data is written with prefixes to support different lookup strategies, but here's a simple example of using this data in a Worker that has a namespace bound to `ZIPS` and uses the [modules](https://blog.cloudflare.com/workers-javascript-modules/) format:
 
 ```js
+const COUNTRY = 'US'
 const BEVERLY_HILLS = '90210'
+const KEY = `${COUNTRY}:i:zip:${BEVERLY_HILLS}`
 
 export default {
 	async fetch(request, env) {
-		const data = env.ZIPS.get(BEVERLY_HILLS, {
+		const data = env.ZIPS.get(KEY, {
 			// All data is stored in JSON format.
 			type: 'json',
 			// Since this data doesn't change frequently, we can reduce
@@ -21,7 +23,16 @@ export default {
 			// https://developers.cloudflare.com/workers/runtime-apis/kv/#cache-ttl
 			cacheTtl: 86400, // 24 hours
 		})
-		return new Response()
+		/*
+		data = {
+			zip: '90210',
+			latitude: 34.0901,
+			longitude: -118.4065,
+			city: 'Beverly Hills',
+			state: 'CA',
+			country: 'US'
+		}
+		*/
 	},
 }
 ```
@@ -44,21 +55,26 @@ npx zip-code-cloudflare-kv
 
 Use the CLI to fill an existing KV namespace with data, or use it to generate and write out a JSON file that you use with the [Wrangler `kv:bulk put`](https://developers.cloudflare.com/workers/wrangler/cli-wrangler/commands/#kvbulk) command.
 
-### `fill`
+#### `fill`
 
-This will write values to your existing KV namespace.
+This will write values to your existing KV namespace. This is not something to do frequently, since writing all data to KV takes about 10 minutes on a reasonable internet connection.
 
 ```bash
-zip-code-cloudflare-kv fill # TODO
+zip-code-cloudflare-kv fill <namespaceId>
 ```
+
+You must set the API token using the environment variable `CF_API_TOKEN`, and you must set the Cloudflare account id using either the `--accountId` option or the `CF_ACCOUNT_ID` environment variable.
+
+The parameter descriptions:
+
+* `<namespaceId>` - The identifier of the KV namespace to fill with data.
 
 Here are the available options:
 
-```js
-// TODO
-```
+* `-a` / `--accountId` - Set the Cloudflare account id to use. This will override the default, which is to use the environment variable `CF_ACCOUNT_ID`.
+* `-p` / `--prefix` - Add a prefix to all items. For example, if the KV namespace is shared with other data you might use `-p "zips:"`, which would change `US:i:zip:90210` to `zips:US:i:zip:90210`.
 
-### `json`
+#### `json`
 
 This will write a JSON file to disk with the list of all KV entries.
 
@@ -68,15 +84,40 @@ zip-code-cloudflare-kv json /path/to/file.json
 
 Here are the available options:
 
-```js
-// TODO
+* `-p` / `--prefix` - Add a prefix to all items, the same as the `fill` command option.
+
+## Keys
+
+Data is written to KV to support several access patterns.
+
+Most keys start with `<COUNTRY>:i:` or `<COUNTRY>:l:` where `i` is for `item` and `l` is for `list`. The items are intended to be retrieved using [KV `get`](https://developers.cloudflare.com/workers/runtime-apis/kv#reading-key-value-pairs), while the list items are an overloaded index approach, you would access them using [KV `list`](https://developers.cloudflare.com/workers/runtime-apis/kv#listing-keys) with the `prefix` option, and extract data from the keys themselves.
+
+> **Note:** if you need specific access patterns, feel free to [open an issue](https://github.com/saibotsivad/zip-code-cloudflare-kv/issues) to discuss it!
+
+#### Key: ZIP Lookup
+
+```
+<COUNTRY>:i:zip:<ZIP>
 ```
 
-## The Keys
+This will give you the detailed information for that ZIP Code. For example, the key `US:i:zip:08644` would give you:
 
-Data is generated using [nrviens/zipcodes](https://github.com/nrviens/zipcodes), and written with a few different access patterns in mind.
+```json
+{
+	"zip": "08644",
+	"latitude": 40.2171,
+	"longitude": -74.7429,
+	"city": "Trenton",
+	"state": "NJ",
+	"country": "US"
+}
+```
 
-### Parameters
+#### Key: ???
+
+*Still in progress.*
+
+## Parameters
 
 ###### `<COUNTRY>`
 
@@ -96,25 +137,10 @@ The ZIP string is country-dependent.
 
 - `US` - The 5-digit ZIP code numbers, e.g. `08644`.
 
-### Keys
-
-#### `<COUNTRY>:item:code:<ZIP>`
-
-This will give you the detailed information for that ZIP Code, in that country. For example, the key `US:code:08644` would give you:
-
-```json
-{
-	"zip": "08644",
-	"latitude": 40.2171,
-	"longitude": -74.7429,
-	"city": "Trenton",
-	"state": "NJ",
-	"country": "US"
-}
-```
-
 ## License
 
-Published and released under the [Very Open License](http://veryopenlicense.com).
+Data is generated using [nrviens/zipcodes](https://github.com/nrviens/zipcodes).
+
+This code and documentation published and released under the [Very Open License](http://veryopenlicense.com).
 
 If you need a commercial license, [contact me here](https://davistobias.com/license?software=zip-code-cloudflare-kv).

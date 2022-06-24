@@ -7,22 +7,35 @@ import { put } from 'httpie'
 import sade from 'sade'
 import split from 'just-split'
 
+const MAX_BULK_BYTES = 99000000 // 100mb so just under it a bit
+const MAX_BULK_ITEMS = 10000
+
 const log = (message, ...parts) => console.log(`[${new Date().toISOString()}] ${message}`, ...parts)
 
-const transformForCountry = (countryCode, { codes }) => {
-	const zipCodes = Object.keys(codes || {})
-	return zipCodes
-		.map(code => ({
-			key: `${countryCode}:item:code:${code}`,
-			value: JSON.stringify(codes[code]),
-		}))
+const generators = {
+	zipLookup: (countryCode, { codes }) => {
+		const zipCodes = Object.keys(codes || {})
+		return zipCodes
+			.map(code => ({
+				key: `${countryCode}:i:zip:${code}`,
+				value: JSON.stringify(codes[code]),
+			}))
+	},
+}
+
+const transformForCountry = (countryCode, data) => {
+	const output = []
+	for (const keyType in generators) {
+		output.push(...generators[keyType](countryCode, data))
+	}
+	return output
 }
 
 const getAllZipData = async ({ prefix }) => {
 	log('Loading data...')
 	const [
-		usCodes,
-		// canadaCodes,
+		usData,
+		// canadaData,
 	] = await Promise.all([
 		import('zipcodes-nrviens/lib/codes.js'),
 		// import('zipcodes-nrviens/lib/codesCanada.js'),
@@ -30,8 +43,8 @@ const getAllZipData = async ({ prefix }) => {
 
 	log('Transforming data...')
 	let items = [
-		...transformForCountry('US', usCodes),
-		// ...transformForCountry('CA', canadaCodes),
+		...transformForCountry('US', usData),
+		// ...transformForCountry('CA', canadaData),
 	]
 	if (prefix) {
 		items = items.map(item => {
@@ -48,9 +61,33 @@ const putValues = async ({ accountId, namespaceId, prefix }) => {
 		log('Must set an account id and KV namespace id.')
 		process.exit(1)
 	}
+	const apiToken = process.env.CF_API_TOKEN
+	if (!apiToken) {
+		log('Must set the API token using the environment variable "CF_API_TOKEN".')
+		process.exit(1)
+	}
 	const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${namespaceId}/bulk`
 	const data = await getAllZipData({ prefix })
-	const chunks = split(data, 123)
+
+	log('Chunking data...')
+	const chunks = [ [] ]
+	let totalBytes = 0
+	let lastChunkSize = 0
+	for (const items of split(data, 100)) {
+		const itemsSize = JSON.stringify(items).length // not quite accurate but close enough
+		const countOfLastChunkPlusThese = chunks[chunks.length - 1].length + itemsSize
+		if (((lastChunkSize + itemsSize) > MAX_BULK_BYTES) || countOfLastChunkPlusThese > MAX_BULK_ITEMS) {
+			chunks.push(items)
+			lastChunkSize = itemsSize
+			totalBytes += itemsSize
+		} else {
+			chunks[chunks.length - 1].push(...items)
+			lastChunkSize += itemsSize
+			totalBytes += itemsSize
+		}
+	}
+	log(`Writing ${data.length} items in ${chunks.length} chunk${chunks.length > 1 ? 's' : ''} (about ${Math.round(totalBytes / 100000) / 10}MB total).`)
+
 	let currentChunk = 0
 	for (const body of chunks) {
 		log(`Writing chunk ${++currentChunk} of ${chunks.length}`)
@@ -59,7 +96,7 @@ const putValues = async ({ accountId, namespaceId, prefix }) => {
 			response = await put(url, {
 				body,
 				headers: {
-					'X-Auth-Key': 'TODO', // TODO
+					'Authorization': `Bearer ${apiToken}`,
 				},
 			})
 		} catch (error) {
@@ -67,6 +104,7 @@ const putValues = async ({ accountId, namespaceId, prefix }) => {
 		}
 		if (!response.data?.success) {
 			log('Failed to write chunk to KV.', JSON.stringify(response.data, undefined, 4))
+			process.exit(1)
 		}
 	}
 }
@@ -81,13 +119,12 @@ const prog = sade('zip-code-cloudflare-kv')
 prog
 	.version(JSON.parse(readFileSync('./package.json', 'utf8')).version)
 	.option('-p, --prefix', 'Add an additional prefix to all items, e.g. for a shared KV namespace.')
-	.option('-i, --include', 'Specify which countries ZIP Codes to use. Available: US, CA', 'US')
+	// .option('-i, --include', 'Specify which countries ZIP Codes to use. Available: US, CA', 'US')
 
-prog.command('fill')
+prog.command('fill <namespaceId>')
 	.describe('Fill a Cloudflare KV namespace with ZIP Code details.')
 	.option('-a, --accountId', 'Your Cloudflare account id. Overrides the default environment variable "CF_ACCOUNT_ID".')
-	.option('-n, --namespaceId', 'The KV namespace identifier to fill with data.')
-	.action(props => putValues(props).catch(error => {
+	.action((namespaceId, props) => putValues({ ...props, namespaceId }).catch(error => {
 		console.error('An error occurred while pushing data to KV.', error)
 		process.exit(1)
 	}).then(() => process.exit(0)))

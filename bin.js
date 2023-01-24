@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { readFileSync } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { mkdir, writeFile } from 'node:fs/promises'
 
 import { put } from 'httpie'
 import sade from 'sade'
@@ -48,10 +49,11 @@ const getAllZipData = async ({ prefix }) => {
 	]
 	if (prefix) {
 		items = items.map(item => {
-			item.key = prefix + item.key
+			item.key = prefix + ':' + item.key
 			return item
 		})
 	}
+	log(`Loaded ${items.length} Zip Codes.`)
 	return items
 }
 
@@ -114,6 +116,20 @@ const writeValues = async ({ prefix, file }) => {
 	await writeFile(file, JSON.stringify(data, undefined, 2), 'utf8')
 }
 
+const writeMiniflare = async ({ namespace, prefix, folder }) => {
+	const items = await getAllZipData({ prefix })
+	const now = Date.now()
+	for (const item of items) {
+		const fileParts = item.key.split(':')
+		const file = fileParts.pop()
+		const fileFolder = join(folder, namespace, ...fileParts)
+		await mkdir(fileFolder, { recursive: true })
+		await writeFile(join(fileFolder, file.toString()), item.value, 'utf8')
+		await writeFile(join(fileFolder, `${file}.meta.json`), JSON.stringify({ key: item.key }), 'utf8')
+	}
+	log(`Finished writing after ${Date.now() - now}ms`)
+}
+
 const prog = sade('zip-code-cloudflare-kv')
 
 prog
@@ -132,6 +148,13 @@ prog.command('fill <namespaceId>')
 prog.command('json <file>')
 	.describe('Write entries to disk as JSON for use by the Wrangler "kv:bulk put" command.')
 	.action((file, { prefix }) => writeValues({ file, prefix }).catch(error => {
+		console.error('An error occurred while writing to disk.', error)
+		process.exit(1)
+	}).then(() => process.exit(0)))
+
+prog.command('mf <kvNamespace> <folder>')
+	.describe('Write entries to disk for use with Miniflare locally persisted, e.g.: miniflare --kv-persist ./data/')
+	.action((namespace, folder, { prefix }) => writeMiniflare({ namespace, folder, prefix }).catch(error => {
 		console.error('An error occurred while writing to disk.', error)
 		process.exit(1)
 	}).then(() => process.exit(0)))

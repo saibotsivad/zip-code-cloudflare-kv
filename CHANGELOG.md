@@ -22,6 +22,12 @@ Change categories are:
 ### Removed
 ### Security
 
+## [0.1.0](https://github.com/saibotsivad/zip-code-cloudflare-kv/compare/v0.0.0...v0.0.1) - 2023-01-24
+### Added
+- Command to write to disk for local development using Miniflare KV.
+### Fixed
+- When specifying a prefix it was not being properly concatenated with the separator.
+
 ## [0.0.0](https://github.com/saibotsivad/zip-code-cloudflare-kv/tree/v0.0.0) - 2022-06-23
 ### Added
 - Created the base project from [saibotsivad/init](https://github.com/saibotsivad/init).

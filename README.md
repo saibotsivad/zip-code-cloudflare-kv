@@ -1,6 +1,6 @@
 # zip-code-cloudflare-kv
 
-Fill a Cloudflare KV namespace with ZIP Code details, e.g. for lookup from a Worker.
+Fill a Cloudflare KV namespace with 42,555 United States ZIP Code details, e.g. for lookup from a Worker.
 
 The basic idea is to create a Workers KV namespace, then run this CLI tool to fill it with data, then bind your Worker to that KV namespace to fetch ZIP Code data.
 
@@ -85,6 +85,42 @@ zip-code-cloudflare-kv json /path/to/file.json
 Here are the available options:
 
 * `-p` / `--prefix` - Add a prefix to all items, the same as the `fill` command option.
+
+#### `mf`
+
+This will write the Zip Code data to a folder, matching the [Miniflare KV](https://miniflare.dev/storage/kv) storage format, so that you can use this data locally.
+
+```bash
+zip-code-cloudflare-kv mf ZIPCODE_NAMESPACE ./data
+```
+
+Then from Miniflare you would use like normal, specifying the path where data is persisted:
+
+```bash
+miniflare --kv ZIPCODE_NAMESPACE --kv-persist ./data
+```
+
+The current folder structure for Miniflare KV will look like this:
+
+```
+data
+  |- ZIPCODE_NAMESPACE
+     |- <COUNTRY_CODE>
+        |- i
+           |- zip
+              |- 90210 # => {"country":"US","code":"90210",...etc}
+              |- 90210.meta.json # => {"key":"US:i:zip:90210"}
+```
+
+If you set a `--prefix` value, it would be one folder deeper:
+
+```
+data
+  |- ZIPCODE_NAMESPACE
+     |- <PREFIX>
+        |- <COUNTRY_CODE>
+           # etc...
+```
 
 ## Keys
 
